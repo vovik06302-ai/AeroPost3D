@@ -33,11 +33,25 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install project dependencies
-        run: npm install --no-audit --no-fund --legacy-peer-deps
+      - name: Install project dependencies (clean, fixes rolldown native binding)
+        shell: pwsh
+        run: |
+          if (Test-Path package-lock.json) { Remove-Item -Force package-lock.json }
+          if (Test-Path node_modules) { Remove-Item -Recurse -Force node_modules }
+          npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Ensure rolldown Windows binding is present
+        shell: pwsh
+        run: |
+          if (Test-Path node_modules/rolldown/package.json) {
+            $v = (Get-Content node_modules/rolldown/package.json -Raw | ConvertFrom-Json).version
+            if (-not (Test-Path node_modules/@rolldown/binding-win32-x64-msvc)) {
+              npm install --no-save --no-audit --no-fund --legacy-peer-deps "@rolldown/binding-win32-x64-msvc@$v"
+            }
+          }
 
       - name: Install Electron & Electron Builder
-        run: npm install --no-save --no-audit --no-fund electron@35.0.0 electron-builder@26.0.12
+        run: npm install --no-save --no-audit --no-fund --legacy-peer-deps electron@35.0.0 electron-builder@26.0.12
 
       - name: Build Frontend & Production Bundle
         run: npm run build
