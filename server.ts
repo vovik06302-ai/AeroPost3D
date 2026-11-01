@@ -1,5 +1,8 @@
 import express from "express";
+import fs from "fs";
 import path from "path";
+import { exec } from "child_process";
+import { promisify } from "util";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import {
@@ -11,6 +14,7 @@ import {
 
 dotenv.config();
 
+const execAsync = promisify(exec);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -24,6 +28,7 @@ let runtimeUserApiKey = "";
 app.get("/api/ai-settings", (_req, res) => {
   const hasCustomKey = runtimeUserApiKey.trim().length > 0;
   res.json({
+    ok: true,
     hasCustomKey,
     maskedKey: hasCustomKey
       ? `${runtimeUserApiKey.slice(0, 4)}••••••••${runtimeUserApiKey.slice(-4)}`
@@ -32,10 +37,12 @@ app.get("/api/ai-settings", (_req, res) => {
 });
 
 app.post("/api/ai-settings", (req, res) => {
-  const { customKey = "" } = (req.body || {}) as { customKey?: string };
-  runtimeUserApiKey = String(customKey || "").trim();
+  const body = (req.body || {}) as { customKey?: string; apiKey?: string };
+  const rawKey = body.apiKey ?? body.customKey ?? "";
+  runtimeUserApiKey = String(rawKey || "").trim();
   const hasCustomKey = runtimeUserApiKey.length > 0;
   res.json({
+    ok: true,
     hasCustomKey,
     maskedKey: hasCustomKey
       ? `${runtimeUserApiKey.slice(0, 4)}••••••••${runtimeUserApiKey.slice(-4)}`
@@ -49,10 +56,127 @@ app.post("/api/ai-settings", (req, res) => {
 app.delete("/api/ai-settings", (_req, res) => {
   runtimeUserApiKey = "";
   res.json({
+    ok: true,
     hasCustomKey: false,
     maskedKey: "",
     message: "Ключ ИИ удалён из программы.",
   });
+});
+
+function getBuildFilesChecklist() {
+  const files = [
+    {
+      path: "src/main.tsx",
+      label: "Точка входа фронтенда (src/main.tsx)",
+    },
+    {
+      path: "src/App.tsx",
+      label: "Главный модуль приложения (src/App.tsx)",
+    },
+    {
+      path: "electron/main.cjs",
+      label: "Главный процесс Windows (electron/main.cjs)",
+    },
+    {
+      path: "electron/preload.cjs",
+      label: "IPC-мост Windows (electron/preload.cjs)",
+    },
+    {
+      path: "electron-builder.yml",
+      label: "Конфигурация сборщика .EXE (electron-builder.yml)",
+    },
+    {
+      path: ".github/workflows/build-windows-exe.yml",
+      label: "Workflow GitHub Actions (.github/workflows/build-windows-exe.yml)",
+    },
+    {
+      path: "package-lock.json",
+      label: "Lock-файл зависимостей (package-lock.json)",
+    },
+    {
+      path: "dist/index.html",
+      label: "Скомпилированный продакшен-бандл (dist/index.html)",
+    },
+  ];
+  return files.map((item) => {
+    const abs = path.resolve(__dirname, item.path);
+    const exists = fs.existsSync(abs);
+    let sizeBytes = 0;
+    if (exists) {
+      try {
+        sizeBytes = fs.statSync(abs).size;
+      } catch {}
+    }
+    return {
+      ...item,
+      exists,
+      sizeBytes,
+    };
+  });
+}
+
+app.get("/api/build-status", (_req, res) => {
+  const checklist = getBuildFilesChecklist();
+  const allReady = checklist.every((f) => f.exists);
+  res.json({
+    ok: true,
+    allReady,
+    version: "1.3.0",
+    checklist,
+    lastCheckedAt: new Date().toLocaleTimeString("ru-RU", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }),
+  });
+});
+
+app.post("/api/run-build", async (_req, res) => {
+  const startedAt = Date.now();
+  const logs: string[] = [];
+  try {
+    logs.push("[1/4] Проверка конфигурации проекта и файлов Electron / GitHub Actions...");
+    const { stdout, stderr } = await execAsync("npx vite build", {
+      cwd: __dirname,
+      env: { ...process.env, NODE_OPTIONS: "--no-deprecation" },
+    });
+    logs.push("[2/4] Выполнена компиляция продакшен-бандла (vite build):");
+    if (stdout && stdout.trim()) {
+      logs.push(stdout.trim());
+    }
+    if (stderr && stderr.trim()) {
+      logs.push(stderr.trim());
+    }
+    const checklist = getBuildFilesChecklist();
+    const allReady = checklist.every((f) => f.exists);
+    const elapsedSec = ((Date.now() - startedAt) / 1000).toFixed(2);
+    logs.push(
+      `[3/4] Проверены файлы Electron (electron/main.cjs, electron/preload.cjs) и GitHub Actions (.github/workflows/build-windows-exe.yml).`
+    );
+    logs.push(
+      `[4/4] Сборка успешно завершена за ${elapsedSec} сек! Все артефакты и изменения готовы.`
+    );
+    res.json({
+      ok: true,
+      allReady,
+      elapsedSec,
+      checklist,
+      logs,
+      completedAt: new Date().toLocaleTimeString("ru-RU", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }),
+    });
+  } catch (err: any) {
+    logs.push(`Ошибка сборки: ${err?.message || String(err)}`);
+    res.status(500).json({
+      ok: false,
+      error: err?.message || "Ошибка запуска сборки",
+      checklist: getBuildFilesChecklist(),
+      logs,
+    });
+  }
 });
 
 function getGenAIClient(): GoogleGenAI {

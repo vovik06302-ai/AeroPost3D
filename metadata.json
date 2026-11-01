@@ -2,5 +2,7 @@
   "name": "AeroPost 3D — Multi-Server Mail & Dispatch Hub",
   "description": "Почтовая программа со сбором писем с разных серверов (Gmail, Google Chat, IMAP), мгновенными push-уведомлениями, 3D-сценой прилетающего конверта, озвучиванием писем (TTS) и ИИ-ассистентом Gemini.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

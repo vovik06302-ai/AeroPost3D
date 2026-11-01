@@ -1,0 +1,54 @@
+name: Build Windows EXE (AeroPost 3D)
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - "**"
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  NODE_OPTIONS: "--no-deprecation"
+  CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+jobs:
+  build-windows:
+    name: Build AeroPost 3D Windows x64 (.exe)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install project dependencies
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Install Electron & Electron Builder
+        run: npm install --no-save --no-audit --no-fund electron@35.0.0 electron-builder@26.0.12
+
+      - name: Build Frontend & Production Bundle
+        run: npm run build
+
+      - name: Package Windows Installer & Portable (.exe)
+        run: npx electron-builder --win --x64 --publish never
+
+      - name: Upload Windows .EXE Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: AeroPost-3D-Windows-EXE
+          path: |
+            release/*.exe
+          if-no-files-found: error
