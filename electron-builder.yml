@@ -1,0 +1,25 @@
+appId: com.aeropost3d.windows.mail
+productName: AeroPost 3D Mail
+directories:
+  output: release
+files:
+  - dist/**/*
+  - electron/**/*
+  - server.ts
+  - package.json
+  - firebase-applet-config.json
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  artifactName: "${productName}-${version}-${arch}.${ext}"
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: "AeroPost 3D — Почтовая программа"

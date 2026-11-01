@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ru" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function () {
+        if (typeof window === "undefined") return;
+        var OrigWebSocket = window.WebSocket;
+        if (OrigWebSocket) {
+          var PatchedWebSocket = function (url, protocols) {
+            var protoStr = Array.isArray(protocols)
+              ? protocols.join(",")
+              : String(protocols || "");
+            if (
+              protoStr.indexOf("vite-hmr") !== -1 ||
+              protoStr.indexOf("vite-ping") !== -1
+            ) {
+              var dummy = new EventTarget();
+              dummy.url = String(url || "");
+              dummy.readyState = 1;
+              dummy.protocol = protoStr;
+              dummy.extensions = "";
+              dummy.bufferedAmount = 0;
+              dummy.binaryType = "blob";
+              dummy.send = function () {};
+              dummy.close = function () {
+                dummy.readyState = 3;
+              };
+              setTimeout(function () {
+                var openEvt = new Event("open");
+                if (typeof dummy.onopen === "function") dummy.onopen(openEvt);
+                dummy.dispatchEvent(openEvt);
+              }, 10);
+              return dummy;
+            }
+            return protocols !== undefined
+              ? new OrigWebSocket(url, protocols)
+              : new OrigWebSocket(url);
+          };
+          PatchedWebSocket.prototype = OrigWebSocket.prototype;
+          PatchedWebSocket.CONNECTING = OrigWebSocket.CONNECTING;
+          PatchedWebSocket.OPEN = OrigWebSocket.OPEN;
+          PatchedWebSocket.CLOSING = OrigWebSocket.CLOSING;
+          PatchedWebSocket.CLOSED = OrigWebSocket.CLOSED;
+          window.WebSocket = PatchedWebSocket;
+        }
+
+        window.addEventListener(
+          "unhandledrejection",
+          function (event) {
+            var reason = event && event.reason;
+            var msg = String((reason && reason.message) || reason || "");
+            if (
+              msg.indexOf("WebSocket") !== -1 ||
+              msg.indexOf("vite") !== -1
+            ) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+            }
+          },
+          true
+        );
+      })();
+    </script>
+    <title>AeroPost 3D — Multi-Server Mail & Dispatch Hub</title>
+    <meta name="description" content="Почтовая программа со сбором писем с разных серверов (Gmail, Google Chat, IMAP), мгновенными push-уведомлениями, 3D-сценой прилетающего конверта, озвучиванием писем (TTS) и ИИ-ассистентом Gemini." />
+    <meta property="og:title" content="AeroPost 3D — Multi-Server Mail & Dispatch Hub" />
+    <meta property="og:description" content="Почтовая программа со сбором писем с разных серверов (Gmail, Google Chat, IMAP), мгновенными push-уведомлениями, 3D-сценой прилетающего конверта, озвучиванием писем (TTS) и ИИ-ассистентом Gemini." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Outfit:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-[#0B0F17] text-[#F1F5F9] antialiased selection:bg-amber-500/30 selection:text-amber-200 overflow-hidden">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
